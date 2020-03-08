@@ -98,7 +98,7 @@ class CocoData(Dataset):
             if torch.max(mask) != 0:
                 mask = mask/torch.max(mask)
             
-            seg_masks[self.category.index(instance['category_id']),:,:] += mask
+            seg_masks[self.category.index(instance['category_id']),:,:] += mask.squeeze(0)
             
         if self.transform is not None:
             img = self.transform(img)

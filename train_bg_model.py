@@ -10,7 +10,7 @@ from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from data_loader_bg_model import CocoData
 from utils import  show_result, mse_loss
-from models_res import Discriminator, Generator_BG
+from networks import Discriminator, Generator_BG
 from Feature_Matching import VGGLoss
 
 def main():
@@ -19,19 +19,19 @@ def main():
     parser.add_argument('--save_models', type=bool, default=True, help='Set True if you want to save trained models')
     parser.add_argument('--pre_trained_model_path', type=str, default=None, help='Pre-trained model path')
     parser.add_argument('--pre_trained_model_epoch', type=str, default=None, help='Pre-trained model epoch e.g 200')
-    parser.add_argument('--train_imgs_path', type=str, default='C:/Users/motur/coco/images/train2017', help='Path to training images')
-    parser.add_argument('--train_annotation_path', type=str, default='C:/Users/motur/coco/annotations/instances_train2017.json', help='Path to annotation file, .json file')
+    parser.add_argument('--train_imgs_path', type=str, default='/mnt/sdb/data/COCO/train2017', help='Path to training images')
+    parser.add_argument('--train_annotation_path', type=str, default='/mnt/sdb/data/COCO/annotations/instances_train2017.json', help='Path to annotation file, .json file')
     parser.add_argument('--category_names', type=str, default='giraffe,elephant,zebra,sheep,cow,bear',help='List of categories in MS-COCO dataset')
     parser.add_argument('--num_test_img', type=int, default=16,help='Number of images saved during training')
-    parser.add_argument('--img_size', type=int, default=128,help='Generated image size')
-    parser.add_argument('--local_patch_size', type=int, default=128, help='Image size of instance images after interpolation')
-    parser.add_argument('--batch_size', type=int, default=16, help='Mini-batch size')
+    parser.add_argument('--img_size', type=int, default=256,help='Generated image size')
+    parser.add_argument('--local_patch_size', type=int, default=256, help='Image size of instance images after interpolation')
+    parser.add_argument('--batch_size', type=int, default=2, help='Mini-batch size')
     parser.add_argument('--train_epoch', type=int, default=400,help='Maximum training epoch')
     parser.add_argument('--lr', type=float, default=0.0002, help='Initial learning rate')
     parser.add_argument('--optim_step_size', type=int, default=80,help='Learning rate decay step size')
     parser.add_argument('--optim_gamma', type=float, default=0.5,help='Learning rate decay ratio')
     parser.add_argument('--critic_iter', type=int, default=5,help='Number of discriminator update against each generator update')
-    parser.add_argument('--noise_size', type=int, default=128,help='Noise vector size')
+    parser.add_argument('--noise_size', type=int, default=256,help='Noise vector size')
     parser.add_argument('--lambda_FM', type=float, default=1,help='Trade-off param for feature matching loss')
     parser.add_argument('--lambda_branch', type=float, default=100, help='Trade-off param for reconstruction loss')
     parser.add_argument('--num_res_blocks', type=int, default=2,help='Number of residual block in generator shared part')
@@ -82,7 +82,7 @@ def main():
         
     #Define networks
     G_bg = Generator_BG(z_dim=opt.noise_size, label_channel=len(category_names),num_res_blocks=opt.num_res_blocks,num_res_blocks_fg=opt.num_res_blocks_fg,num_res_blocks_bg=opt.num_res_blocks_bg)
-    D_glob = Discriminator(channels=3+len(category_names))
+    D_glob = Discriminator(channels=3+len(category_names),input_size=opt.img_size)
     G_bg.cuda()
     D_glob.cuda()
         
@@ -163,7 +163,7 @@ def main():
                 z_ = Variable(z_.cuda())
         
                 #Generate fake images
-                G_result, G_bg = G_bg(z_, y_)
+                G_result, G_result_bg = G_bg(z_, y_)
                 G_result_d = torch.cat([G_result,y_],1) 
                 D_result = D_glob(G_result_d.detach()).squeeze()
                 
@@ -171,7 +171,7 @@ def main():
                 D_fake_loss.backward()
                 D_local_optimizer.step()
                 D_train_loss = D_real_loss + D_fake_loss
-                D_local_losses.append(D_train_loss.data[0])
+                D_local_losses.append(D_train_loss.item())
     
             #Update generator G
             G_bg.zero_grad()   
@@ -183,14 +183,14 @@ def main():
             FM_loss = criterionVGG(G_result,x_)
             
             #Branch-similar loss
-            branch_sim_loss = mse_loss(torch.mul(G_result,(1-y_reduced) ), torch.mul(G_bg,(1-y_reduced))  )
+            branch_sim_loss = mse_loss(torch.mul(G_result,(1-y_reduced) ), torch.mul(G_result_bg,(1-y_reduced))  )
             
             total_loss = G_train_loss + opt.lambda_FM*FM_loss + opt.lambda_branch*branch_sim_loss
             total_loss.backward()
             G_local_optimizer.step()
-            G_local_losses.append(G_train_loss.data[0])
+            G_local_losses.append(G_train_loss.item())
     
-            print('loss_d: %.3f, loss_g: %.3f' % (D_train_loss.data[0],G_train_loss.data[0]))
+            print('loss_d: %.3f, loss_g: %.3f' % (D_train_loss.item(),G_train_loss.item()))
             if (num_iter % 100) == 0:
                 print('%d - %d complete!' % ((epoch+1), num_iter))
                 print(result_folder_name)
@@ -202,7 +202,7 @@ def main():
         
         #Save images
         G_bg.eval()
-        G_result, G_bg = G_bg(z_fixed, y_fixed)
+        G_result, G_result_bg = G_bg(z_fixed, y_fixed)
         G_bg.train()
         
         if epoch == 0:
@@ -210,11 +210,11 @@ def main():
                 show_result((epoch+1), y_fixed[:,t:t+1,:,:] ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_masked.png')
             
         show_result((epoch+1),G_result ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '.png')
-        show_result((epoch+1),G_bg ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_bg.png')
+        show_result((epoch+1),G_result_bg ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_bg.png')
         
         #Save model params
         if opt.save_models and (epoch>21 and epoch % 10 == 0 ):
-            torch.save(G_bg.state_dict(), root +model_folder_name+ '/' + model + 'G_bg_epoch_'+str(epoch)+'.pth')
+            torch.save(G_result_bg.state_dict(), root +model_folder_name+ '/' + model + 'G_bg_epoch_'+str(epoch)+'.pth')
             torch.save(D_glob.state_dict(), root + model_folder_name +'/'+ model + 'D_glob_epoch_'+str(epoch)+'.pth')
               
             

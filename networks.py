@@ -5,8 +5,10 @@ from spectral_normalization import SpectralNorm
 import numpy as np
 
 channels = 3
-GEN_SIZE=128
+GEN_SIZE= 128
 DISC_SIZE=128
+
+IMG_SIZE=256
 
 class ResBlockGenerator(nn.Module):
 
@@ -160,7 +162,7 @@ class Generator_BG(nn.Module):
         self.cond_16 = nn.AvgPool2d(4)
         nn.init.xavier_uniform(self.cond_64.weight.data, 1.)
         
-        self.dense = nn.Linear(self.z_dim, 4 * 4 * GEN_SIZE)
+        self.dense = nn.Linear(self.z_dim, IMG_SIZE//32 * IMG_SIZE//32 * GEN_SIZE)
         self.final = nn.Conv2d(GEN_SIZE*3//2, channels, 3, stride=1, padding=1)
         self.final_bg = nn.Conv2d(GEN_SIZE, channels, 3, stride=1, padding=1)
         nn.init.xavier_uniform(self.dense.weight.data, 1.)
@@ -206,7 +208,7 @@ class Generator_BG(nn.Module):
 
     def forward(self, z, y):
         y = self.cond_16( F.relu(self.cond_64_BN(self.cond_64(y) )))
-        x = self.model1( self.dense(z).view(-1, GEN_SIZE, 4, 4) )
+        x = self.model1( self.dense(z).view(-1, GEN_SIZE, IMG_SIZE//32, IMG_SIZE//32) )
         x = self.model2(x)
         x_non_bg = torch.cat([x,y],1)
         
@@ -226,7 +228,8 @@ class Generator_FG(nn.Module):
         self.z_dim = z_dim
         self.num_res_blocks = num_res_blocks
         
-        self.dense = nn.Linear(self.z_dim, 16 * 16 * GEN_SIZE)
+        #self.dense = nn.Linear(self.z_dim, 16 * 16 * GEN_SIZE)
+        self.dense = nn.Linear(self.z_dim, IMG_SIZE//8 * IMG_SIZE//8 * GEN_SIZE)
         nn.init.xavier_uniform(self.dense.weight.data, 1.)
         
         self.final = nn.Conv2d(GEN_SIZE*7//2, channels, 3, stride=1, padding=1)
@@ -266,7 +269,8 @@ class Generator_FG(nn.Module):
             nn.Tanh())
 
     def forward(self, z, y, prev_img):
-        z = self.dense(z).view(-1, GEN_SIZE, 16, 16) 
+        z = self.dense(z).view(-1, GEN_SIZE, IMG_SIZE//8, IMG_SIZE//8) 
+        #z = self.dense(z).view(-1, GEN_SIZE, 32, 32) 
         #y = self.cond_16( F.relu(self.cond_64_BN(self.cond_64(y) )))
         y = self.cond_16( self.cond_64(y) )
         prev_img = F.relu(self.recon_64_BN(self.recon_64(prev_img)))
@@ -328,3 +332,49 @@ class Generator_Baseline(nn.Module):
         x = self.model2(x)
      
         return x            
+
+    
+class Generator_Baseline_2(nn.Module):
+    def __init__(self, z_dim, label_channel=0, out_channel=1, num_res_blocks=2):
+        super(Generator_Baseline_2, self).__init__()
+        self.z_dim = z_dim
+        self.num_res_blocks = num_res_blocks
+        
+        self.dense = nn.Linear(self.z_dim, 16 * 16 * GEN_SIZE)
+        nn.init.xavier_uniform(self.dense.weight.data, 1.)
+        
+        self.final = nn.Conv2d(GEN_SIZE*5//2, out_channel, 3, stride=1, padding=1)
+        nn.init.xavier_uniform(self.final.weight.data, 1.)
+        
+        self.cond_64 = nn.Conv2d(int(label_channel), GEN_SIZE//2, 4, 2, 1, bias=False)
+        self.cond_64_BN = nn.BatchNorm2d(GEN_SIZE//2) 
+        nn.init.xavier_uniform(self.cond_64.weight.data, 1.)
+        self.cond_16 = nn.AvgPool2d(4)
+        
+
+        self.model1 = nn.Sequential()
+        for j in range(self.num_res_blocks):
+            self.model1.add_module(str(j), ResBlockGenerator2(GEN_SIZE*3//2, GEN_SIZE*3//2))
+        
+        
+        self.model2 = nn.Sequential(
+            ResBlockGenerator(GEN_SIZE*5//2, GEN_SIZE*5//2, stride=2),
+            ResBlockGenerator(GEN_SIZE*5//2, GEN_SIZE*5//2, stride=2),
+            ResBlockGenerator(GEN_SIZE*5//2, GEN_SIZE*5//2, stride=2),
+            nn.BatchNorm2d(GEN_SIZE*5//2),
+            nn.ReLU(),
+            self.final,
+            nn.Tanh())
+        
+    def forward(self, z, y):
+        z = self.dense(z).view(-1, GEN_SIZE, 16, 16) 
+        y = self.cond_16( F.relu(self.cond_64_BN(self.cond_64(y) )))
+
+        x = torch.cat([z,y],1)
+        x = self.model1(x)
+        
+        x = torch.cat([z,x],1)
+        x = self.model2(x)
+     
+        return x            
+    
