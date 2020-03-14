@@ -22,10 +22,10 @@ def main():
     parser.add_argument('--train_imgs_path', type=str, default='/mnt/sdb/data/COCO/train2017', help='Path to training images')
     parser.add_argument('--train_annotation_path', type=str, default='/mnt/sdb/data/COCO/annotations/instances_train2017.json', help='Path to annotation file, .json file')
     parser.add_argument('--category_names', type=str, default='giraffe,elephant,zebra,sheep,cow,bear',help='List of categories in MS-COCO dataset')
-    parser.add_argument('--num_test_img', type=int, default=16,help='Number of images saved during training')
+    parser.add_argument('--num_test_img', type=int, default=4,help='Number of images saved during training')
     parser.add_argument('--img_size', type=int, default=256,help='Generated image size')
     parser.add_argument('--local_patch_size', type=int, default=256, help='Image size of instance images after interpolation')
-    parser.add_argument('--batch_size', type=int, default=2, help='Mini-batch size')
+    parser.add_argument('--batch_size', type=int, default=4, help='Mini-batch size')
     parser.add_argument('--train_epoch', type=int, default=400,help='Maximum training epoch')
     parser.add_argument('--lr', type=float, default=0.0002, help='Initial learning rate')
     parser.add_argument('--optim_step_size', type=int, default=80,help='Learning rate decay step size')
@@ -172,7 +172,6 @@ def main():
                 D_local_optimizer.step()
                 D_train_loss = D_real_loss + D_fake_loss
                 D_local_losses.append(D_train_loss.item())
-    
             #Update generator G
             G_bg.zero_grad()   
             D_result = D_glob(G_result_d).squeeze() 
@@ -194,7 +193,6 @@ def main():
             if (num_iter % 100) == 0:
                 print('%d - %d complete!' % ((epoch+1), num_iter))
                 print(result_folder_name)
-    
         epoch_end_time = time.time()
         per_epoch_ptime = epoch_end_time - epoch_start_time
         print('[%d/%d] - ptime: %.2f, loss_d: %.3f, loss_g: %.3f' % ((epoch + 1), opt.train_epoch, per_epoch_ptime, torch.mean(torch.FloatTensor(D_local_losses)),
@@ -205,7 +203,7 @@ def main():
         G_result, G_result_bg = G_bg(z_fixed, y_fixed)
         G_bg.train()
         
-        if epoch == 0:
+        if epoch%10 == 0:
             for t in range(y_fixed.size()[1]):
                 show_result((epoch+1), y_fixed[:,t:t+1,:,:] ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_masked.png')
             
@@ -214,7 +212,7 @@ def main():
         
         #Save model params
         if opt.save_models and (epoch>21 and epoch % 10 == 0 ):
-            torch.save(G_result_bg.state_dict(), root +model_folder_name+ '/' + model + 'G_bg_epoch_'+str(epoch)+'.pth')
+            torch.save(G_bg.state_dict(), root +model_folder_name+ '/' + model + 'G_bg_epoch_'+str(epoch)+'.pth')
             torch.save(D_glob.state_dict(), root + model_folder_name +'/'+ model + 'D_glob_epoch_'+str(epoch)+'.pth')
               
             

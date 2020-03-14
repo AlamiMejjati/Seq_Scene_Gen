@@ -1,3 +1,5 @@
 __pycache__/
 result_bg/
 result_fg/
+result_mask/
+.vscode/

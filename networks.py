@@ -335,15 +335,16 @@ class Generator_Baseline(nn.Module):
 
     
 class Generator_Baseline_2(nn.Module):
-    def __init__(self, z_dim, label_channel=0, out_channel=1, num_res_blocks=2):
+    def __init__(self, z_dim, label_channel=0, num_res_blocks=2):
         super(Generator_Baseline_2, self).__init__()
         self.z_dim = z_dim
         self.num_res_blocks = num_res_blocks
         
-        self.dense = nn.Linear(self.z_dim, 16 * 16 * GEN_SIZE)
+        #self.dense = nn.Linear(self.z_dim, 16 * 16 * GEN_SIZE)
+        self.dense = nn.Linear(self.z_dim, IMG_SIZE//8 * IMG_SIZE//8 * GEN_SIZE)
         nn.init.xavier_uniform(self.dense.weight.data, 1.)
         
-        self.final = nn.Conv2d(GEN_SIZE*5//2, out_channel, 3, stride=1, padding=1)
+        self.final = nn.Conv2d(GEN_SIZE*3//2, 1, 3, stride=1, padding=1)
         nn.init.xavier_uniform(self.final.weight.data, 1.)
         
         self.cond_64 = nn.Conv2d(int(label_channel), GEN_SIZE//2, 4, 2, 1, bias=False)
@@ -358,23 +359,24 @@ class Generator_Baseline_2(nn.Module):
         
         
         self.model2 = nn.Sequential(
-            ResBlockGenerator(GEN_SIZE*5//2, GEN_SIZE*5//2, stride=2),
-            ResBlockGenerator(GEN_SIZE*5//2, GEN_SIZE*5//2, stride=2),
-            ResBlockGenerator(GEN_SIZE*5//2, GEN_SIZE*5//2, stride=2),
-            nn.BatchNorm2d(GEN_SIZE*5//2),
+            ResBlockGenerator(GEN_SIZE*3//2, GEN_SIZE*3//2, stride=2),
+            ResBlockGenerator(GEN_SIZE*3//2, GEN_SIZE*3//2, stride=2),
+            ResBlockGenerator(GEN_SIZE*3//2, GEN_SIZE*3//2, stride=2),
+            nn.BatchNorm2d(GEN_SIZE*3//2),
             nn.ReLU(),
             self.final,
-            nn.Tanh())
+            nn.Sigmoid())
         
     def forward(self, z, y):
-        z = self.dense(z).view(-1, GEN_SIZE, 16, 16) 
-        y = self.cond_16( F.relu(self.cond_64_BN(self.cond_64(y) )))
+        z = self.dense(z).view(-1, GEN_SIZE, IMG_SIZE//8, IMG_SIZE//8) 
+        #z = self.dense(z).view(-1, GEN_SIZE, 16, 16) 
+        #y = self.cond_16( F.relu(self.cond_64_BN(self.cond_64(y) )))
+        y = self.cond_16( self.cond_64(y) )
 
         x = torch.cat([z,y],1)
         x = self.model1(x)
         
-        x = torch.cat([z,x],1)
+        #x = torch.cat([z,x],1)
         x = self.model2(x)
      
-        return x            
-    
+        return x  
