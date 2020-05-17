@@ -17,6 +17,14 @@ from torch.autograd import Variable
 from data_loader_bgfg_2 import CocoData
 from utils import  show_result
 from networks import Discriminator, Generator_Baseline_2
+import argparse
+
+parser = argparse.ArgumentParser()
+parser.add_argument('--batch_size', type=int, default =4,   help='batch size')
+parser.add_argument('--num_test_img', type=int, default =4,   help='num test images')
+parser.add_argument('--train_annotation', type=str,  help='path to annotations')
+parser.add_argument('--train_imgs', type=str, help='dataset path')
+opt = parser.parse_args()
 
 log_numb = 0
 epoch_bias = 0
@@ -25,8 +33,8 @@ load_params = False
 category_names = ['cow','sheep','zebra']
 #Hyperparameters
 noise_size = 128
-batch_size = 4
-num_test_img = 4
+batch_size = opt.batch_size
+num_test_img = opt.num_test_img
 lr = 0.0002
 train_epoch = 400
 img_size = 256
@@ -45,8 +53,8 @@ transform = transforms.Compose([transforms.Scale((img_size,img_size)),
                                 transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5)),
                                ]) 
 
-dataset = CocoData(root = '/mnt/sdb/data/COCO/train2017/',
-                            annFile = '/mnt/sdb/data/COCO/annotations/instances_train2017.json',
+dataset = CocoData(root = opt.train_imgs,
+                            annFile = opt.train_annotation,
                             category_names = category_names,
                             transform=transform,
                             final_img_size=img_size)  
