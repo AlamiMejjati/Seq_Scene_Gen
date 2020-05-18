@@ -9,7 +9,7 @@ from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
 from data_loader_fg_model import CocoData
-from utils import  show_result, mse_loss
+from utils import  show_result, mse_loss, show_result_rgb
 from networks import Discriminator, Generator_FG
 from Feature_Matching import VGGLoss
 
@@ -246,11 +246,11 @@ def main():
         G_fg.eval()
         
         if epoch == 0:
-            show_result((epoch+1),x_fixed ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_gt.png')
+            show_result_rgb((epoch+1),x_fixed ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_gt.png')
             for t in range(y_fixed.size()[1]):
-                show_result((epoch+1), y_fixed[:,t:t+1,:,:] ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) +'_'+ str(t) +'_masked.png')
+                show_result_rgb((epoch+1), y_fixed[:,t:t+1,:,:] ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) +'_'+ str(t) +'_masked.png')
             
-        show_result((epoch+1), G_fg(z_fixed,y_fixed,torch.mul(x_fixed,(1-torch.sum(y_fixed,1).view(y_fixed.size(0),1,opt.img_size,opt.img_size)))) ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_fg.png')
+        show_result_rgb((epoch+1), G_fg(z_fixed,y_fixed,torch.mul(x_fixed,(1-torch.sum(y_fixed,1).view(y_fixed.size(0),1,opt.img_size,opt.img_size)))) ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_fg.png')
         G_fg.train()
         
         #Save model params
