@@ -20,19 +20,19 @@ def main():
     parser.add_argument('--save_models', type=bool, default=True, help='Set True if you want to save trained models')
     parser.add_argument('--pre_trained_model_path', type=str, default=None, help='Pre-trained model path')
     parser.add_argument('--pre_trained_model_epoch', type=str, default=None, help='Pre-trained model epoch e.g 200')
-    parser.add_argument('--train_imgs_path', type=str, default='/mnt/sdb/data/COCO/train2017', help='Path to training images')
-    parser.add_argument('--train_annotation_path', type=str, default='/mnt/sdb/data/COCO/annotations/instances_train2017.json', help='Path to annotation file, .json file')
+    parser.add_argument('--train_imgs_path', type=str, default='C:/Users/motur/coco/images/train2017', help='Path to training images')
+    parser.add_argument('--train_annotation_path', type=str, default='C:/Users/motur/coco/annotations/instances_train2017.json', help='Path to annotation file, .json file')
     parser.add_argument('--category_names', type=str, default='giraffe,elephant,zebra,sheep,cow,bear',help='List of categories in MS-COCO dataset')
-    parser.add_argument('--num_test_img', type=int, default=4,help='Number of images saved during training')
+    parser.add_argument('--num_test_img', type=int, default=16,help='Number of images saved during training')
     parser.add_argument('--img_size', type=int, default=256,help='Generated image size')
     parser.add_argument('--local_patch_size', type=int, default=256, help='Image size of instance images after interpolation')
-    parser.add_argument('--batch_size', type=int, default=4, help='Mini-batch size')
+    parser.add_argument('--batch_size', type=int, default=16, help='Mini-batch size')
     parser.add_argument('--train_epoch', type=int, default=400,help='Maximum training epoch')
     parser.add_argument('--lr', type=float, default=0.0002, help='Initial learning rate')
     parser.add_argument('--optim_step_size', type=int, default=80,help='Learning rate decay step size')
     parser.add_argument('--optim_gamma', type=float, default=0.5,help='Learning rate decay ratio')
     parser.add_argument('--critic_iter', type=int, default=5,help='Number of discriminator update against each generator update')
-    parser.add_argument('--noise_size', type=int, default=256,help='Noise vector size')
+    parser.add_argument('--noise_size', type=int, default=128,help='Noise vector size')
     parser.add_argument('--lambda_FM', type=float, default=1,help='Trade-off param for feature matching loss')
     parser.add_argument('--lambda_recon', type=float, default=0.00001,help='Trade-off param for reconstruction loss')
     parser.add_argument('--num_res_blocks', type=int, default=5,help='Number of residual block in generator network')
@@ -82,7 +82,7 @@ def main():
     
     #Define networks
     G_fg = Generator_FG(z_dim=opt.noise_size, label_channel=len(category_names),num_res_blocks=opt.num_res_blocks)
-    D_glob = Discriminator(channels=3+len(category_names),input_size=opt.img_size)
+    D_glob = Discriminator(channels=3+len(category_names))
     D_instance = Discriminator(channels=3+len(category_names),input_size=opt.local_patch_size)
     G_fg.cuda()
     D_glob.cuda()
@@ -185,14 +185,13 @@ def main():
                     
                 D_result_instance = D_instance(torch.cat([x_instances,y_instances],1)).squeeze()       
                 D_result = D_glob(x_d).squeeze()
-                
                 D_real_loss = BCE_loss(D_result, y_real_) +  BCE_loss(D_result_instance, y_real_)
                 D_real_loss.backward()
                 
                 #Fake examples
                 z_ = torch.randn((mini_batch,opt.noise_size))
                 z_ = Variable(z_.cuda())
-
+    
                 #Generate fake images
                 G_fg_result = G_fg(z_,y_, torch.mul(x_,(1-y_reduced)))
                 G_result_d = torch.cat([G_fg_result,fg_mask],1) 
@@ -211,7 +210,7 @@ def main():
                 D_local_optimizer.step()
                 
                 D_train_loss = D_real_loss + D_fake_loss
-                D_local_losses.append(D_train_loss.item())
+                D_local_losses.append(D_train_loss.data)
     
             if mini_batch != opt.batch_size:
                 break  
@@ -231,9 +230,9 @@ def main():
             total_loss = G_train_loss + opt.lambda_FM*FM_loss + opt.lambda_recon*Recon_loss
             total_loss.backward() 
             G_local_optimizer.step()
-            G_local_losses.append(G_train_loss.item())
+            G_local_losses.append(G_train_loss.data)
     
-            print('loss_d: %.3f, loss_g: %.3f' % (D_train_loss.item(),G_train_loss.item()))
+            print('loss_d: %.3f, loss_g: %.3f' % (D_train_loss.data,G_train_loss.data))
             if (num_iter % 100) == 0:
                 print('%d - %d complete!' % ((epoch+1), num_iter))
                 print(result_folder_name)
@@ -246,7 +245,7 @@ def main():
         #Save images
         G_fg.eval()
         
-        if epoch %10 == 0:
+        if epoch == 0:
             show_result((epoch+1),x_fixed ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_gt.png')
             for t in range(y_fixed.size()[1]):
                 show_result((epoch+1), y_fixed[:,t:t+1,:,:] ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) +'_'+ str(t) +'_masked.png')

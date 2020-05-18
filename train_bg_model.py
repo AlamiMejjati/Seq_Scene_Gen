@@ -19,13 +19,13 @@ def main():
     parser.add_argument('--save_models', type=bool, default=True, help='Set True if you want to save trained models')
     parser.add_argument('--pre_trained_model_path', type=str, default=None, help='Pre-trained model path')
     parser.add_argument('--pre_trained_model_epoch', type=str, default=None, help='Pre-trained model epoch e.g 200')
-    parser.add_argument('--train_imgs_path', type=str, default='/mnt/sdb/data/COCO/train2017', help='Path to training images')
-    parser.add_argument('--train_annotation_path', type=str, default='/mnt/sdb/data/COCO/annotations/instances_train2017.json', help='Path to annotation file, .json file')
+    parser.add_argument('--train_imgs_path', type=str, default='C:/Users/motur/coco/images/train2017', help='Path to training images')
+    parser.add_argument('--train_annotation_path', type=str, default='C:/Users/motur/coco/annotations/instances_train2017.json', help='Path to annotation file, .json file')
     parser.add_argument('--category_names', type=str, default='giraffe,elephant,zebra,sheep,cow,bear',help='List of categories in MS-COCO dataset')
-    parser.add_argument('--num_test_img', type=int, default=4,help='Number of images saved during training')
+    parser.add_argument('--num_test_img', type=int, default=16,help='Number of images saved during training')
     parser.add_argument('--img_size', type=int, default=256,help='Generated image size')
     parser.add_argument('--local_patch_size', type=int, default=256, help='Image size of instance images after interpolation')
-    parser.add_argument('--batch_size', type=int, default=4, help='Mini-batch size')
+    parser.add_argument('--batch_size', type=int, default=16, help='Mini-batch size')
     parser.add_argument('--train_epoch', type=int, default=400,help='Maximum training epoch')
     parser.add_argument('--lr', type=float, default=0.0002, help='Initial learning rate')
     parser.add_argument('--optim_step_size', type=int, default=80,help='Learning rate decay step size')
@@ -82,7 +82,7 @@ def main():
         
     #Define networks
     G_bg = Generator_BG(z_dim=opt.noise_size, label_channel=len(category_names),num_res_blocks=opt.num_res_blocks,num_res_blocks_fg=opt.num_res_blocks_fg,num_res_blocks_bg=opt.num_res_blocks_bg)
-    D_glob = Discriminator(channels=3+len(category_names),input_size=opt.img_size)
+    D_glob = Discriminator(channels=3+len(category_names))
     G_bg.cuda()
     D_glob.cuda()
         
@@ -171,7 +171,8 @@ def main():
                 D_fake_loss.backward()
                 D_local_optimizer.step()
                 D_train_loss = D_real_loss + D_fake_loss
-                D_local_losses.append(D_train_loss.item())
+                D_local_losses.append(D_train_loss.data)
+    
             #Update generator G
             G_bg.zero_grad()   
             D_result = D_glob(G_result_d).squeeze() 
@@ -187,12 +188,13 @@ def main():
             total_loss = G_train_loss + opt.lambda_FM*FM_loss + opt.lambda_branch*branch_sim_loss
             total_loss.backward()
             G_local_optimizer.step()
-            G_local_losses.append(G_train_loss.item())
+            G_local_losses.append(G_train_loss.data)
     
-            print('loss_d: %.3f, loss_g: %.3f' % (D_train_loss.item(),G_train_loss.item()))
+            print('loss_d: %.3f, loss_g: %.3f' % (D_train_loss.data,G_train_loss.data))
             if (num_iter % 100) == 0:
                 print('%d - %d complete!' % ((epoch+1), num_iter))
                 print(result_folder_name)
+    
         epoch_end_time = time.time()
         per_epoch_ptime = epoch_end_time - epoch_start_time
         print('[%d/%d] - ptime: %.2f, loss_d: %.3f, loss_g: %.3f' % ((epoch + 1), opt.train_epoch, per_epoch_ptime, torch.mean(torch.FloatTensor(D_local_losses)),
@@ -203,7 +205,7 @@ def main():
         G_result, G_result_bg = G_bg(z_fixed, y_fixed)
         G_bg.train()
         
-        if epoch%10 == 0:
+        if epoch == 0:
             for t in range(y_fixed.size()[1]):
                 show_result((epoch+1), y_fixed[:,t:t+1,:,:] ,save=True, path=root + result_folder_name+ '/' + model + str(epoch + 1 ) + '_masked.png')
             

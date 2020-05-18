@@ -94,7 +94,6 @@ class CocoData(Dataset):
 
         idx_list = [i for i in range(len(instance_types)) if (instance_types[i] in self.category and len(target[i]['segmentation'])==1)]
         num_object = len(idx_list)
-        
         seg_masks = torch.zeros([num_object,len(self.category),self.final_img_size,self.final_img_size])
         bboxes = torch.zeros([num_object,len(self.category),self.final_img_size,self.final_img_size])
         ins_area = torch.zeros([num_object])
@@ -116,7 +115,7 @@ class CocoData(Dataset):
             if torch.max(mask) != 0:
                 mask = mask/torch.max(mask)
                 
-            seg_masks[i,self.category.index(instance['category_id']),:,:] = mask.squeeze(0)
+            seg_masks[i,self.category.index(instance['category_id']),:,:] = mask
             fg_category[i] = self.category.index(instance['category_id'])
             
             bbox = instance['bbox']
@@ -125,7 +124,7 @@ class CocoData(Dataset):
             bbox_mask= self.transform2(bbox_mask)
             if torch.max(bbox_mask) != 0:
                 bbox_mask = bbox_mask/torch.max(bbox_mask)
-            bboxes[i,self.category.index(instance['category_id']),:,:] = bbox_mask.squeeze(0)
+            bboxes[i,self.category.index(instance['category_id']),:,:] = bbox_mask
             
         if self.transform is not None:
             img = self.transform(img)
