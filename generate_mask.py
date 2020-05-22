@@ -127,16 +127,16 @@ scheduler_G = lr_scheduler.StepLR(G_local_optimizer, step_size=optim_step_size, 
 scheduler_D = lr_scheduler.StepLR(D_local_optimizer, step_size=optim_step_size, gamma=optim_gamma)
 
 #---------------------- results save folder-----------------------------------
-root = 'result_local/'
+root = 'result_local/'  +  opt.category_names + '/'
 model = 'coco_model_'
 result_folder_name = 'local_result_' + str(log_numb)
 model_folder_name = 'models_local_' + str(log_numb)
 if not os.path.isdir(root):
-    os.mkdir(root)
+    os.makedirs(root)
 if not os.path.isdir(root + result_folder_name):
-    os.mkdir(root + result_folder_name)
+    os.makedirs(root + result_folder_name)
 if not os.path.isdir(root + model_folder_name):
-    os.mkdir(root + model_folder_name)
+    os.makedirs(root + model_folder_name)
 
 #Save the file for inspection later
 copyfile(os.path.basename(__file__), root + result_folder_name + '/' + os.path.basename(__file__))

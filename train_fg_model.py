@@ -42,16 +42,16 @@ def main():
     print(opt)
        
     #Create log folder
-    root = 'result_fg/'
+    root = 'result_fg/' + opt.category_names +  '/'
     model = 'coco_model_'
     result_folder_name = 'images_' + opt.log_dir
     model_folder_name = 'models_' + opt.log_dir
     if not os.path.isdir(root):
-        os.mkdir(root)
+        os.makedirs(root)
     if not os.path.isdir(root + result_folder_name):
-        os.mkdir(root + result_folder_name)
+        os.makedirs(root + result_folder_name)
     if not os.path.isdir(root + model_folder_name):
-        os.mkdir(root + model_folder_name)
+        os.makedirs(root + model_folder_name)
     
     #Save the script
     copyfile(os.path.basename(__file__), root + result_folder_name + '/' + os.path.basename(__file__))
@@ -254,7 +254,7 @@ def main():
         G_fg.train()
         
         #Save model params
-        if opt.save_models and (epoch>11 and epoch % 10 == 0 ):
+        if opt.save_models and (epoch>11 and epoch % 50 == 0 ):
             torch.save(G_fg.state_dict(), root +model_folder_name+ '/' + model + 'G_fg_epoch_'+str(epoch)+'.pth')
             torch.save(D_glob.state_dict(), root + model_folder_name +'/'+ model + 'D_glob_epoch_'+str(epoch)+'.pth')
             torch.save(D_instance.state_dict(), root +model_folder_name+ '/' + model + 'D_local_epoch_'+str(epoch)+'.pth')
