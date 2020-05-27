@@ -514,6 +514,88 @@ class MHP(Dataset):
     def __len__(self):
         return len(self.mfiles)
 
+class chairs(Dataset):
+    """
+    Args:
+        root (string): Root directory where images are downloaded to.
+        annFile (string): Path to json annotation file.
+        transform (callable, optional): A function/transform that  takes in an PIL image
+            and returns a transformed version. E.g, ``transforms.ToTensor``
+        target_transform (callable, optional): A function/transform that takes in the
+            target and transforms it.
+        category_names : name of the categories desired dataset consists
+        final_img_size : Dataset image size, default: 128
+
+
+        Return:
+            'image'  : 3x128x128
+            'segmentation mask' : num_catx128x128  --- only one  instance for specific category (one instance for each category)
+            'category' : multiple categories (e.g. zebra, giraffe)
+
+    """
+
+    def __init__(self, imfile, mfiles, transform=None, target_transform=None, category_names=None, final_img_size=256,
+                 time_step=1):
+        self.imfile  = imfile
+        self.mfiles = mfiles
+        self.transform = transform
+        self.target_transform = target_transform
+        self.final_img_size = final_img_size
+        self.time_step = time_step
+        self.transform2 = transforms.Compose([
+            transforms.Scale((final_img_size, final_img_size)),
+            transforms.ToTensor(),
+        ])
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: Tuple (image, target). target is the object returned by ``coco.loadAnns``.
+        """
+        # Delete next line
+        # index = 572 + 109
+
+        # print(img_id)
+        mf = self.mfiles[index]
+        filename = os.path.join(self.imfile, mf.split('chairs/')[1])
+        f = os.path.join(self.imfile, filename)
+        img = np.array(Image.open(f).convert('RGB'))
+        mask = cv2.imread(mf, cv2.IMREAD_GRAYSCALE)
+
+        xs = np.nonzero(np.sum(mask, axis=0))[0]
+        ys = np.nonzero(np.sum(mask, axis=1))[0]
+        box = np.array([0, 0, 0, 0])
+        box[1] = xs.min()
+        box[3] = xs.max()
+        box[0] = ys.min()
+        box[2] = ys.max()
+        bbx = np.zeros_like(mask)
+        bbx[box[0]:box[2], box[1]:box[3]] = 1.
+        bbx = self.transform2(Image.fromarray(bbx))
+        mask = self.transform2(Image.fromarray(mask))
+        if self.transform is not None:
+            img = self.transform(Image.fromarray(img))
+
+        num_object = 1
+        fg_category = torch.zeros([num_object])
+        seg_masks = torch.zeros([num_object, 1, self.final_img_size, self.final_img_size])
+        bboxes = torch.zeros([num_object, 1, self.final_img_size, self.final_img_size])
+        seg_masks[0,0, :,:] = mask
+        bboxes[0,0,:,:] = bbx
+
+        seg_masks = torch.clamp(seg_masks, 0, 1)
+        bboxes = torch.clamp(bboxes, 0, 1)
+
+
+        sample = {'image': img, 'seg_mask': seg_masks, 'bboxes': bboxes, 'fg_category': fg_category, 'num_object': num_object}
+        return sample
+
+    def __len__(self):
+        return len(self.mfiles)
+
 #-------------------------Example-----------------------------------------
 if __name__ == '__main__':
     transform = transforms.Compose([transforms.Resize((128,128)),
