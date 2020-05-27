@@ -253,7 +253,8 @@ for epoch in range(train_epoch):
         torch.save(G_local.state_dict(), root +model_folder_name+ '/' + model + 'G_glob_epoch_'+str(epoch_biassed)+'.pth')
         torch.save(D_local.state_dict(), root + model_folder_name +'/'+ model + 'D_glob_epoch_'+str(epoch_biassed)+'.pth')
           
-        
+torch.save(G_local.state_dict(), root +model_folder_name+ '/' + model + 'G_glob_epoch_'+str(epoch_biassed)+'.pth')
+torch.save(D_local.state_dict(), root + model_folder_name +'/'+ model + 'D_glob_epoch_'+str(epoch_biassed)+'.pth')
 end_time = time.time()
 total_ptime = end_time - start_time
 print("Training finish!... save training results")

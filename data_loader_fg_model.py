@@ -7,7 +7,7 @@ from PIL import Image, ImageDraw
 import os
 import torchvision
 from utils import imshow
-    
+import cv2
 
 class CocoData(Dataset):
     """
@@ -266,8 +266,6 @@ class cityscape(Dataset):
             transforms.ToTensor(),
         ])
 
-
-
     def __getitem__(self, index):
         """
         Args:
@@ -293,8 +291,8 @@ class cityscape(Dataset):
             mask = mask[box[0]:box[2], box[1]:box[3]]
 
             img_size = img.shape
-            img_size_x = img_size[0]
-            img_size_y = img_size[1]
+            img_size_x = img_size[1]
+            img_size_y = img_size[0]
             seg_masks = torch.zeros([1, self.final_img_size, self.final_img_size])
             single_fg_mask = torch.zeros([1, self.final_img_size, self.final_img_size])
             instance_types = []
@@ -438,6 +436,153 @@ class cityscape(Dataset):
         # bbx[box[0]:box[2], box[1]:box[3], :] = 1
 
         return box
+
+    def __len__(self):
+        return len(self.mfiles)
+
+    # -------------------------Example-----------------------------------------
+
+
+class MHP(Dataset):
+    """
+    Args:
+        root (string): Root directory where images are downloaded to.
+        annFile (string): Path to json annotation file.
+        transform (callable, optional): A function/transform that  takes in an PIL image
+            and returns a transformed version. E.g, ``transforms.ToTensor``
+        target_transform (callable, optional): A function/transform that takes in the
+            target and transforms it.
+        category_names : name of the categories desired dataset consists
+        final_img_size : Dataset image size, default: 128
+
+
+        Return:
+            'image'  : 3x128x128
+            'segmentation mask' : num_catx128x128  --- only one  instance for specific category (one instance for each category)
+            'category' : multiple categories (e.g. zebra, giraffe)
+
+    """
+
+    def __init__(self, imfile, mfiles, transform=None, target_transform=None, category_names=None, final_img_size=256):
+        self.imfile = imfile
+        self.mfiles = mfiles
+        self.transform = transform
+        self.target_transform = target_transform
+        self.final_img_size = final_img_size
+        self.transform2 = transforms.Compose([
+            transforms.Scale((final_img_size, final_img_size)),
+            transforms.ToTensor(),
+        ])
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: Tuple (image, target). target is the object returned by ``coco.loadAnns``.
+        """
+
+        valid_instance = False
+        num_iter = 0
+        while valid_instance == False and (num_iter < 5):
+            mf = self.mfiles[index]
+            mask = np.array(cv2.imread(mf))
+            mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
+            mask = (mask > 0) * 1.
+            f = os.path.join(self.imfile, os.path.basename(mf).split('_')[0] + '.jpg')
+            img = np.array(Image.open(f).convert('RGB'))
+
+            img_size = img.shape
+            img_size_x = img_size[1]
+            img_size_y = img_size[0]
+            seg_masks = torch.zeros([1, self.final_img_size, self.final_img_size])
+            single_fg_mask = torch.zeros([1, self.final_img_size, self.final_img_size])
+            instance_types = []
+            num_object = 1
+            bbox = np.array([0, 0, 0, 0])
+            for i in range(num_object):
+                if i == 0:
+                    xs = np.nonzero(np.sum(mask, axis=0))[0]
+                    ys = np.nonzero(np.sum(mask, axis=1))[0]
+                    bbox[0] = xs.min()
+                    bbox[2] = xs.max() - xs.min()
+                    bbox[1] = ys.min()
+                    bbox[3] = ys.max() - ys.min()
+                    mask_instance_1 = mask
+                    bbox_mask = Image.new('L', (img_size_x, img_size_y))
+                    ImageDraw.Draw(bbox_mask).rectangle([bbox[0], bbox[1], bbox[0] + bbox[2], bbox[1] + bbox[3]],
+                                                        outline=1, fill=1)
+                    bbox_mask = self.transform2(bbox_mask)
+                    if torch.max(bbox_mask) != 0:
+                        bbox_mask = bbox_mask / torch.max(bbox_mask)
+
+                mask = self.transform2(Image.fromarray(mask))
+                if torch.max(mask) != 0:
+                    mask = mask / torch.max(mask)
+
+                seg_masks[0, :, :] += mask.squeeze()
+
+                # Single foreground object mask
+                if i == 0:
+                    single_fg_obj_ctg = 0
+                    single_fg_mask[single_fg_obj_ctg, :, :] = mask
+
+            if self.transform is not None:
+                img = self.transform(Image.fromarray(img))
+
+            seg_masks = torch.clamp(seg_masks, 0, 1)
+
+            ###bounding-box of the object in resized image
+            if bbox[2] > bbox[3]:
+                dx = 0
+                dy = (bbox[2] - bbox[3]) / 2
+            else:
+                dx = (bbox[3] - bbox[2]) / 2
+                dy = 0
+
+            x1 = max(0, bbox[0] - dx)
+            y1 = max(0, bbox[1] - dy)
+            x2 = min(img_size_x, bbox[0] + bbox[2] + dx)
+            y2 = min(img_size_y, bbox[1] + bbox[3] + dy)
+
+            mask_instance_1 = Image.fromarray(mask_instance_1)
+            mask_instance_1 = mask_instance_1.crop((int(x1), int(y1), int(x2), int(y2)))
+            mask_instance_1 = self.transform2(mask_instance_1)
+            if torch.max(mask_instance_1) != 0:
+                mask_instance_1 = mask_instance_1 / torch.max(mask_instance_1)
+
+            mask_instance = torch.zeros([1, self.final_img_size, self.final_img_size])
+            mask_instance[single_fg_obj_ctg, :, :] = mask_instance_1
+
+            x_scale = self.final_img_size / img_size_x
+            y_scale = self.final_img_size / img_size_y
+            x1, x2 = x1 * x_scale, x2 * x_scale
+            y1, y2 = y1 * y_scale, y2 * y_scale
+
+            # bbox_scaled = [y1,y2,x1,x2]
+            bbox_scaled = [int(y1), int(y2), int(x1), int(x2)]
+
+            num_iter += 1
+            if (bbox_scaled[1] > bbox_scaled[0]) and (bbox_scaled[3] > bbox_scaled[2]):
+                valid_instance = True
+
+        if not (bbox_scaled[1] > bbox_scaled[0]):
+            if bbox_scaled[1] < self.final_img_size:
+                bbox_scaled[1] += 1
+            else:
+                bbox_scaled[0] -= 1
+        if not (bbox_scaled[3] > bbox_scaled[2]):
+            if bbox_scaled[3] < self.final_img_size:
+                bbox_scaled[3] += 1
+            else:
+                bbox_scaled[2] -= 1
+
+        sample = {'image': img, 'seg_mask': seg_masks,
+                  'single_fg_mask': single_fg_mask,
+                  'mask_instance': mask_instance, 'bbox': bbox_scaled,
+                  'cat': 0, 'num_object': num_object}
+        return sample
 
     def __len__(self):
         return len(self.mfiles)

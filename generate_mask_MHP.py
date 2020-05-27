@@ -14,7 +14,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
-from data_loader_bgfg_2 import cityscape
+from data_loader_bgfg_2 import MHP
 from utils import  show_result
 from models_res import Discriminator, Generator_Baseline_2
 import argparse
@@ -57,8 +57,8 @@ transform = transforms.Compose([transforms.Scale((img_size,img_size)),
                                ]) 
 
 allmasks = sorted(glob.glob(os.path.join(opt.mask_imgs, '*.png')))
-
-dataset = cityscape(imfile= opt.train_imgs, mfiles = allmasks,  category_names = category_names, transform=transform, final_img_size=img_size)
+print('Number of masks: %d'%len(allmasks))
+dataset = MHP(imfile= opt.train_imgs, mfiles = allmasks,  category_names = category_names, transform=transform, final_img_size=img_size)
 
 
 #Discarding images contain small instances  

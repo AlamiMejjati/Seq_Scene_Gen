@@ -8,7 +8,7 @@ import torch.optim.lr_scheduler as lr_scheduler
 from torchvision import transforms
 from torch.utils.data import DataLoader
 from torch.autograd import Variable
-from data_loader_fg_model import CocoData, cityscape
+from data_loader_fg_model import MHP
 from utils import  show_result, mse_loss, show_result_rgb
 from networks import Discriminator, Generator_FG
 from Feature_Matching import VGGLoss
@@ -64,7 +64,7 @@ def main():
     #Load dataset
     category_names = opt.category_names.split(',')
     allmasks = sorted(glob.glob(os.path.join(opt.mask_imgs, '*.png')))
-    dataset = cityscape(imfile= opt.train_imgs, mfiles = allmasks,  category_names = category_names, transform=transform, final_img_size=opt.img_size)
+    dataset = MHP(imfile= opt.train_imgs, mfiles = allmasks,  category_names = category_names, transform=transform, final_img_size=opt.img_size)
     
     #Discard images contain very small instances  
     # dataset.discard_small(min_area=0.03, max_area=1)
@@ -156,7 +156,7 @@ def main():
                 
                 y_instances = sample_batched['mask_instance']
                 bbox = sample_batched['bbox']
-                
+
                 mini_batch = x_.size()[0]
                 if mini_batch != opt.batch_size:
                     break
@@ -181,9 +181,10 @@ def main():
                       
                 #Obtain instances
                 for t in range(x_d.size()[0]):
-                    x_instance = x_[t,0:3,bbox[0][t]:bbox[1][t],bbox[2][t]:bbox[3][t]] 
-                    x_instance = x_instance.contiguous().view(1,x_instance.size()[0],x_instance.size()[1],x_instance.size()[2]) 
+                    x_instance = x_[t,0:3,bbox[0][t]:bbox[1][t],bbox[2][t]:bbox[3][t]]
+                    x_instance = x_instance.contiguous().view(1,x_instance.size()[0],x_instance.size()[1],x_instance.size()[2])
                     x_instances[t] = up_instance(x_instance)
+
                     
                 D_result_instance = D_instance(torch.cat([x_instances,y_instances],1)).squeeze()       
                 D_result = D_glob(x_d).squeeze()
