@@ -19,7 +19,7 @@ def main():
     parser.add_argument('--log_dir', type=str, default='log', help='Name of the log folder')
     parser.add_argument('--save_models', type=bool, default=True, help='Set True if you want to save trained models')
     parser.add_argument('--pre_trained_model_path', type=str, default=None, help='Pre-trained model path')
-    parser.add_argument('--pre_trained_model_epoch', type=str, default=None, help='Pre-trained model epoch e.g 200')
+    parser.add_argument('--pre_trained_model_epoch', type=str, default='0', help='Pre-trained model epoch e.g 200')
     parser.add_argument('--train_imgs_path', type=str, default='C:/Users/motur/coco/images/train2017', help='Path to training images')
     parser.add_argument('--train_annotation_path', type=str, default='C:/Users/motur/coco/annotations/instances_train2017.json', help='Path to annotation file, .json file')
     parser.add_argument('--category_names', type=str, default='giraffe,elephant,zebra,sheep,cow,bear',help='List of categories in MS-COCO dataset')
@@ -91,9 +91,9 @@ def main():
     #Load parameters from pre-trained models
     if opt.pre_trained_model_path != None and opt.pre_trained_model_epoch != None:
         try:
-            G_fg.load_state_dict(torch.load(opt.pre_trained_model_path + 'G_fg_epoch_' + opt.pre_trained_model_epoch))
-            D_glob.load_state_dict(torch.load(opt.pre_trained_model_path + 'D_glob_epoch_' + opt.pre_trained_model_epoch))
-            D_instance.load_state_dict(torch.load(opt.pre_trained_model_path + 'D_local_epoch_' + opt.pre_trained_model_epoch))    
+            G_fg.load_state_dict(torch.load(opt.pre_trained_model_path + '/coco_model_G_fg_epoch_' + opt.pre_trained_model_epoch+'.pth'))
+            D_glob.load_state_dict(torch.load(opt.pre_trained_model_path + '/coco_model_D_glob_epoch_' + opt.pre_trained_model_epoch+'.pth'))
+            D_instance.load_state_dict(torch.load(opt.pre_trained_model_path + '/coco_model_D_local_epoch_' + opt.pre_trained_model_epoch+'.pth'))
             print('Parameters are loaded!')
         except:
             print('Error: Pre-trained parameters are not loaded!')
@@ -126,7 +126,7 @@ def main():
     print('training start!')
     start_time = time.time()
     
-    for epoch in range(opt.train_epoch):
+    for epoch in range(int(opt.pre_trained_model_epoch), opt.train_epoch):
         epoch_start_time = time.time()
         
         scheduler_G.step()
