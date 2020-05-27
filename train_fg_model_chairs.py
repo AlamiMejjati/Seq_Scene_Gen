@@ -258,7 +258,7 @@ def main():
         G_fg.train()
         
         #Save model params
-        if opt.save_models and (epoch>11 and epoch % 50 == 0 ):
+        if opt.save_models and (epoch>11 and epoch % 10 == 0 ):
             torch.save(G_fg.state_dict(), root +model_folder_name+ '/' + model + 'G_fg_epoch_'+str(epoch)+'.pth')
             torch.save(D_glob.state_dict(), root + model_folder_name +'/'+ model + 'D_glob_epoch_'+str(epoch)+'.pth')
             torch.save(D_instance.state_dict(), root +model_folder_name+ '/' + model + 'D_local_epoch_'+str(epoch)+'.pth')
