@@ -491,7 +491,11 @@ class MHP(Dataset):
             mask = cv2.cvtColor(mask, cv2.COLOR_BGR2GRAY)
             mask = (mask > 0) * 1.
             f = os.path.join(self.imfile, os.path.basename(mf).split('_')[0] + '.jpg')
-            img = np.array(Image.open(f).convert('RGB'))
+            try:
+                img = np.array(Image.open(f).convert('RGB'))
+            except:
+                print('image skipped')
+                continue
 
             img_size = img.shape
             img_size_x = img_size[1]
