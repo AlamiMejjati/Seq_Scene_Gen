@@ -7,6 +7,7 @@ from PIL import Image, ImageDraw
 import os
 import torchvision
 import cv2
+import itertools
 
 def imshow(img):
     img = img / 2 + 0.5     # unnormalize
@@ -213,7 +214,6 @@ class CocoData(Dataset):
         print(str(len(self.ids)) + '-->' + str(len(temp)))
         self.ids = temp
 
-
 class zebra_silvia(Dataset):
     """
     Args:
@@ -268,6 +268,11 @@ class zebra_silvia(Dataset):
         bbx[box[0]:box[2], box[1]:box[3]] = 1.
         bbx = self.transform2(Image.fromarray(bbx))
         mask = self.transform2(Image.fromarray(mask))
+        if torch.max(mask) != 0:
+            mask = mask / torch.max(mask)
+        if torch.max(bbx) != 0:
+            bbx = bbx / torch.max(bbx)
+        
         # seg_masks = torch.zeros([len(self.category),self.final_img_size,self.final_img_size])
         num_object = 1
         seg_masks = torch.zeros([num_object, 1, self.final_img_size, self.final_img_size])
@@ -283,7 +288,6 @@ class zebra_silvia(Dataset):
 
     def __len__(self):
         return len(self.root)
-
 
 class cityscape(Dataset):
     """
@@ -352,6 +356,10 @@ class cityscape(Dataset):
         bbx[box[0]:box[2], box[1]:box[3]] = 1.
         bbx = self.transform2(Image.fromarray(bbx))
         mask = self.transform2(Image.fromarray(mask))
+        if torch.max(mask) != 0:
+            mask = mask / torch.max(mask)
+        if torch.max(bbx) != 0:
+            bbx = bbx / torch.max(bbx)
         if self.transform is not None:
             img = self.transform(Image.fromarray(img))
 
@@ -494,6 +502,10 @@ class MHP(Dataset):
         bbx[box[0]:box[2], box[1]:box[3]] = 1.
         bbx = self.transform2(Image.fromarray(bbx))
         mask = self.transform2(Image.fromarray(mask))
+        if torch.max(mask) != 0:
+            mask = mask / torch.max(mask)
+        if torch.max(bbx) != 0:
+            bbx = bbx / torch.max(bbx)
         if self.transform is not None:
             img = self.transform(Image.fromarray(img))
 
@@ -576,6 +588,10 @@ class chairs(Dataset):
         bbx[box[0]:box[2], box[1]:box[3]] = 1.
         bbx = self.transform2(Image.fromarray(bbx))
         mask = self.transform2(Image.fromarray(mask))
+        if torch.max(mask) != 0:
+            mask = mask / torch.max(mask)
+        if torch.max(bbx) != 0:
+            bbx = bbx / torch.max(bbx)
         if self.transform is not None:
             img = self.transform(Image.fromarray(img))
 
@@ -596,6 +612,88 @@ class chairs(Dataset):
     def __len__(self):
         return len(self.mfiles)
 
+class Inferer(Dataset):
+    """
+    Args:
+        root (string): Root directory where images are downloaded to.
+        annFile (string): Path to json annotation file.
+        transform (callable, optional): A function/transform that  takes in an PIL image
+            and returns a transformed version. E.g, ``transforms.ToTensor``
+        target_transform (callable, optional): A function/transform that takes in the
+            target and transforms it.
+        category_names : name of the categories desired dataset consists
+        final_img_size : Dataset image size, default: 128
+
+
+        Return:
+            'image'  : 3x128x128
+            'segmentation mask' : num_catx128x128  --- only one  instance for specific category (one instance for each category)
+            'category' : multiple categories (e.g. zebra, giraffe)
+
+    """
+
+    def __init__(self, imfile, mfiles, transform=None, target_transform=None, category_names=None, final_img_size=256,
+                 time_step=1):
+        self.nb_boxes = len(mfiles)
+        self.imfiles = [[Image.open(f).convert('RGB')]*len(mfiles) for f in imfile]
+        
+        self.imfiles = list(itertools.chain(*self.imfiles))
+        self.mfiles = mfiles*len(imfile)
+        self.transform = transform
+        self.target_transform = target_transform
+        self.final_img_size = final_img_size
+        self.time_step = time_step
+        self.transform2 = transforms.Compose([
+            transforms.Scale((final_img_size, final_img_size)),
+            transforms.ToTensor(),
+        ])
+
+    def __getitem__(self, index):
+        """
+        Args:
+            index (int): Index
+
+        Returns:
+            tuple: Tuple (image, target). target is the object returned by ``coco.loadAnns``.
+        """
+
+        mf = self.mfiles[index]
+        img = self.imfiles[index]
+        img = self.transform(img)
+        mask = cv2.imread(mf, cv2.IMREAD_GRAYSCALE)
+
+        xs = np.nonzero(np.sum(mask, axis=0))[0]
+        ys = np.nonzero(np.sum(mask, axis=1))[0]
+        box = np.array([0, 0, 0, 0])
+        box[1] = xs.min()
+        box[3] = xs.max()
+        box[0] = ys.min()
+        box[2] = ys.max()
+        bbx = np.zeros_like(mask)
+        bbx[box[0]:box[2], box[1]:box[3]] = 1.
+        bbx = self.transform2(Image.fromarray(bbx))
+        mask = self.transform2(Image.fromarray(mask))
+        if torch.max(mask) != 0:
+            mask = mask / torch.max(mask)
+        if torch.max(bbx) != 0:
+            bbx = bbx / torch.max(bbx)
+            
+        num_object = 1
+        fg_category = torch.zeros([num_object])
+        seg_masks = torch.zeros([num_object, 1, self.final_img_size, self.final_img_size])
+        bboxes = torch.zeros([num_object, 1, self.final_img_size, self.final_img_size])
+        seg_masks[0,0, :,:] = mask
+        bboxes[0,0,:,:] = bbx
+
+        seg_masks = torch.clamp(seg_masks, 0, 1)
+        bboxes = torch.clamp(bboxes, 0, 1)
+
+
+        sample = {'image': img, 'seg_mask': seg_masks, 'bboxes': bboxes}
+        return sample
+
+    def __len__(self):
+        return len(self.mfiles)
 #-------------------------Example-----------------------------------------
 if __name__ == '__main__':
     transform = transforms.Compose([transforms.Resize((128,128)),
